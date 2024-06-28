@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kicodelibrary/go-http-server-2024/pkg/server/users"
 	"github.com/spf13/pflag"
 )
 
@@ -32,6 +33,12 @@ func main() {
 	root.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello World!")
 	}).Methods("GET")
+
+	// Handle the `/users` routes.
+	h := users.Handler{}
+	// Create a subrouter for the `/users` prefix.
+	sub := root.PathPrefix("/users").Subrouter()
+	h.AddRoutes(sub)
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 	server := &http.Server{
