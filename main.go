@@ -35,7 +35,7 @@ func main() {
 	}).Methods("GET")
 
 	// Handle the `/users` routes.
-	h := users.Handler{}
+	h := users.New()
 	// Create a subrouter for the `/users` prefix.
 	sub := root.PathPrefix("/users").Subrouter()
 	h.AddRoutes(sub)
