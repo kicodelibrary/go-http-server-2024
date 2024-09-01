@@ -47,7 +47,7 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 	// The response is always going to be JSON.
 	w.Header().Set("Content-Type", "application/json")
 
-	var users []api.User
+	users := []api.User{}
 	for _, v := range h.users {
 		users = append(users, v)
 	}
