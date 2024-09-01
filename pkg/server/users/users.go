@@ -44,6 +44,9 @@ func (h Handler) AddRoutes(r *mux.Router) {
 
 // List handles the list user route (`/`).
 func (h Handler) List(w http.ResponseWriter, r *http.Request) {
+	// The response is always going to be JSON.
+	w.Header().Set("Content-Type", "application/json")
+
 	var users []api.User
 	for _, v := range h.users {
 		users = append(users, v)
@@ -54,21 +57,22 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not marshal response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		// Sometimes we may want to return the actual error to the user.
-		w.Write([]byte("internal error"))
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
-	// Indicate to the client that we are sending JSON.
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(msg)
 }
 
 // Create handles the create user route (`/`).
 func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
+	// The response is always going to be JSON.
+	w.Header().Set("Content-Type", "application/json")
+
 	// Check the content-type header.
 	if r.Header.Get("Content-Type") != "application/json" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("Content-Type must be application/json"))
+		w.Write(api.NewJSONResponse("Content-Type must be application/json"))
 		return
 	}
 
@@ -83,21 +87,21 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not decode body: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		// Sometimes we may want to return the actual error to the user.
-		w.Write([]byte("Unable to parse the request body"))
+		w.Write(api.NewJSONResponse("Unable to parse the request body"))
 		return
 	}
 	if err := json.Unmarshal(body, &user); err != nil {
 		log.Printf("could not unmarshal JSON: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		// Sometimes we may want to return the actual error to the user.
-		w.Write([]byte("Unable to unmarshal JSON"))
+		w.Write(api.NewJSONResponse("Unable to unmarshal JSON"))
 		return
 	}
 
 	// Validate the request.
 	if err := user.Validate(); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid request"))
+		w.Write(api.NewJSONResponse("invalid request"))
 		return
 	}
 
@@ -105,24 +109,26 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 	_, ok := h.users[user.ID]
 	if ok {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("user already exists"))
+		w.Write(api.NewJSONResponse("user already exists"))
 		return
 	}
 	// Create the user (add it to the map).
 	h.users[user.ID] = user
-
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("user created"))
+	w.Write(api.NewJSONResponse("user created"))
 }
 
 // Get gets a user. It handles a GET request for the dynamic route `/users/{id}`.
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	// The response is always going to be JSON.
+	w.Header().Set("Content-Type", "application/json")
+
 	// Get the ID from the path.
 	id, ok := mux.Vars(r)["id"] // Don't use brackets here (`{}`).
 	if !ok {
 		// This is mostly a problem with the code.
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
@@ -130,7 +136,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.users[id]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("user not found"))
+		w.Write(api.NewJSONResponse("user not found"))
 		return
 	}
 
@@ -139,22 +145,23 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("could not unmarshal the user: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
-	// Indicate to the client that we are sending JSON.
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(msg)
 }
 
 // Update updates the user (PUT request).
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	// The response is always going to be JSON.
+	w.Header().Set("Content-Type", "application/json")
+
 	// Check the content-type header.
 	if r.Header.Get("Content-Type") != "application/json" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("Content-Type must be application/json"))
+		w.Write(api.NewJSONResponse("Content-Type must be application/json"))
 		return
 	}
 
@@ -163,7 +170,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		// This is mostly a problem with the code.
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
@@ -171,7 +178,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	_, ok = h.users[id]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("user not found"))
+		w.Write(api.NewJSONResponse("user not found"))
 		return
 	}
 
@@ -186,42 +193,45 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not decode body: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		// Sometimes we may want to return the actual error to the user.
-		w.Write([]byte("Unable to parse the request body"))
+		w.Write(api.NewJSONResponse("Unable to parse the request body"))
 		return
 	}
 	if err := json.Unmarshal(body, &update); err != nil {
 		log.Printf("could not unmarshal JSON: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		// Sometimes we may want to return the actual error to the user.
-		w.Write([]byte("Unable to unmarshal JSON"))
+		w.Write(api.NewJSONResponse("Unable to unmarshal JSON"))
 		return
 	}
 
 	// Validate the request. Check that the user ID is correct.
 	if err := update.Validate(); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid request"))
+		w.Write(api.NewJSONResponse("invalid request"))
 		return
 	}
 	if id != update.ID {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("ID in the body does not match the path"))
+		w.Write(api.NewJSONResponse("ID in the body does not match the path"))
 		return
 	}
 
 	h.users[id] = update
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("user updated"))
+	w.Write(api.NewJSONResponse("user updated"))
 }
 
 // Delete deletes the user.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	// The response is always going to be JSON.
+	w.Header().Set("Content-Type", "application/json")
+
 	// Get the ID from the path.
 	id, ok := mux.Vars(r)["id"] // Don't use brackets here (`{}`).
 	if !ok {
 		// This is mostly a problem with the code.
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
@@ -229,12 +239,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	_, ok = h.users[id]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("user not found"))
+		w.Write(api.NewJSONResponse("user not found"))
 		return
 	}
 
 	// Delete the user.
 	delete(h.users, id)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("user deleted"))
+	w.Write(api.NewJSONResponse("user deleted"))
 }
