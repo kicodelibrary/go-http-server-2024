@@ -309,7 +309,7 @@ func TestUsers(t *testing.T) {
 		{
 			Name: "GetAfterDelete",
 			Request: func() *http.Request {
-				req, err := http.NewRequest(http.MethodDelete, "/users/alice", nil)
+				req, err := http.NewRequest(http.MethodGet, "/users/alice", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -507,7 +507,7 @@ func TestUsersMulti(t *testing.T) {
 			{
 				Name: "GetAfterDelete",
 				RequestFunc: func() *http.Request {
-					req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("/users/%s", tu.UserName), nil)
+					req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/users/%s", tu.UserName), nil)
 					if err != nil {
 						t.Fatal(err)
 					}

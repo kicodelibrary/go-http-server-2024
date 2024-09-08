@@ -20,7 +20,7 @@ func NewUsers() *Users {
 
 // List implements database.Users.
 func (u Users) List() ([]api.User, error) {
-	var ret []api.User
+	ret := []api.User{} // Initialize.
 	for _, user := range u.users {
 		ret = append(ret, user)
 	}
