@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kicodelibrary/go-http-server-2024/pkg/database"
 	"github.com/kicodelibrary/go-http-server-2024/pkg/server/users"
 	"github.com/spf13/pflag"
 )
@@ -16,6 +17,7 @@ import (
 type Config struct {
 	Port, Host string
 	Timeout    time.Duration
+	Database   database.Config
 }
 
 var (
@@ -35,7 +37,12 @@ func main() {
 	}).Methods("GET")
 
 	// Handle the `/users` routes.
-	h := users.New()
+	usersDB, err := config.Database.NewUsers()
+	if err != nil {
+		log.Fatal(err)
+	}
+	h := users.New(usersDB)
+
 	// Create a subrouter for the `/users` prefix.
 	sub := root.PathPrefix("/users").Subrouter()
 	h.AddRoutes(sub)
@@ -61,6 +68,9 @@ func init() {
 	flags.StringVarP(&config.Host, "host", "h", "localhost", "Hostname")
 	flags.StringVarP(&config.Port, "port", "p", "8080", "Port")
 	flags.DurationVarP(&config.Timeout, "timeout", "t", 10*time.Second, "Server timeouts")
+
+	// Define the flags for the database.
+	flags.StringVar(&config.Database.Type, "database.type", "mock", "Database type (supported values: mock)")
 
 	// Define the usage (help) function (when `--help` is used).
 	flags.Usage = func() {

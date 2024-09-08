@@ -2,23 +2,26 @@ package users
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/kicodelibrary/go-http-server-2024/api"
+	"github.com/kicodelibrary/go-http-server-2024/pkg/database"
+	dbErrors "github.com/kicodelibrary/go-http-server-2024/pkg/database/errors"
 )
 
 // Handler handles the `/users/` routes.
 type Handler struct {
-	users map[string]api.User // In-memory storage. Will be replaced when there's a database.
+	users database.Users
 }
 
 // New creates a new handler.
-func New() *Handler {
+func New(users database.Users) *Handler {
 	return &Handler{
-		users: make(map[string]api.User),
+		users: users,
 	}
 }
 
@@ -47,9 +50,14 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 	// The response is always going to be JSON.
 	w.Header().Set("Content-Type", "application/json")
 
-	users := []api.User{}
-	for _, v := range h.users {
-		users = append(users, v)
+	// List users from the database.
+	users, err := h.users.List()
+	if err != nil {
+		log.Printf("could not list users: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		// Sometimes we may want to return the actual error to the user.
+		w.Write(api.NewJSONResponse("internal error"))
+		return
 	}
 
 	msg, err := json.Marshal(users)
@@ -106,14 +114,28 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user already exists and error if true.
-	_, ok := h.users[user.ID]
-	if ok {
+	_, err = h.users.Get(user.ID)
+	if err == nil {
+		// This means that the user already exists.
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(api.NewJSONResponse("user already exists"))
 		return
+	} else if !errors.Is(err, dbErrors.ErrUserNotFound) {
+		// The error is not errors.ErrUserNotFound. This means that something else went wrong.
+		log.Printf("could not get user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error"))
+		return
 	}
-	// Create the user (add it to the map).
-	h.users[user.ID] = user
+
+	// Create the user.
+	err = h.users.Create(user)
+	if err != nil {
+		log.Printf("could not create user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("user could not be created"))
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 	w.Write(api.NewJSONResponse("user created"))
 }
@@ -133,13 +155,18 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the user exists.
-	user, ok := h.users[id]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(api.NewJSONResponse("user not found"))
+	user, err := h.users.Get(id)
+	if err != nil {
+		if errors.Is(err, dbErrors.ErrUserNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write(api.NewJSONResponse("user not found"))
+			return
+		}
+		log.Printf("could not get user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
-
 	// Marshal the user as a JSON and return to the client.
 	msg, err := json.Marshal(user)
 	if err != nil {
@@ -174,11 +201,19 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the user exists.
-	_, ok = h.users[id]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(api.NewJSONResponse("user not found"))
+	// Check and error if user is not found.
+	// If err == nil, the user exists and we proceed.
+	// If not, we check the error type and return an appropriate code.
+	_, err := h.users.Get(id)
+	if err != nil {
+		if errors.Is(err, dbErrors.ErrUserNotFound) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write(api.NewJSONResponse("user not found"))
+			return
+		}
+		log.Printf("could not get user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
@@ -216,7 +251,13 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.users[id] = update
+	if err := h.users.Update(id, update); err != nil {
+		log.Printf("could not update user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error, could not update user"))
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(api.NewJSONResponse("user updated"))
 }
@@ -235,16 +276,30 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the user exists.
-	_, ok = h.users[id]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(api.NewJSONResponse("user not found"))
+	// Check and error if user is not found.
+	// If err != nil, check the error type and return an appropriate response.
+	// If err == nil, the user exists, so proceed to deletion.
+	_, err := h.users.Get(id)
+	if err != nil {
+		if errors.Is(err, dbErrors.ErrUserNotFound) {
+			log.Printf("could not get user: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write(api.NewJSONResponse("user not found"))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error"))
 		return
 	}
 
 	// Delete the user.
-	delete(h.users, id)
+	if err := h.users.Delete(id); err != nil {
+		log.Printf("could not delete user: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(api.NewJSONResponse("internal error, could not delete user"))
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(api.NewJSONResponse("user deleted"))
 }

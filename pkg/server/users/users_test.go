@@ -11,13 +11,14 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kicodelibrary/go-http-server-2024/api"
+	"github.com/kicodelibrary/go-http-server-2024/pkg/database/mock"
 	. "github.com/kicodelibrary/go-http-server-2024/pkg/server/users"
 	"github.com/smarty/assertions"
 )
 
 func TestUser(t *testing.T) {
 	a := assertions.New(t)
-	h := New()
+	h := New(mock.NewUsers())
 
 	// Create a test router.
 	router := mux.NewRouter().PathPrefix("/users").Subrouter()
@@ -176,7 +177,7 @@ func TestUser(t *testing.T) {
 
 func TestUsers(t *testing.T) {
 	a := assertions.New(t)
-	h := New()
+	h := New(mock.NewUsers())
 
 	// Create a test router.
 	router := mux.NewRouter().PathPrefix("/users").Subrouter()
@@ -343,7 +344,7 @@ func TestUsers(t *testing.T) {
 
 func TestUsersMulti(t *testing.T) {
 	a := assertions.New(t)
-	h := New()
+	h := New(mock.NewUsers())
 
 	// Create a test router.
 	router := mux.NewRouter().PathPrefix("/users").Subrouter()
